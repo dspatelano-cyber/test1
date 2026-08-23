@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Glycolysis Pathway Model</title>
+<style>
+  :root {
+    --bg-main: #0d131f;
+    --card-bg: #162032;
+    --card-border: #23334d;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --substrate-bg: #1e3a5f;
+    --substrate-border: #38bdf8;
+    --substrate-color: #e0f2fe;
+    --enzyme-bg: #2d1f47;
+    --enzyme-border: #c084fc;
+    --enzyme-color: #f3e8ff;
+    --energy-use-bg: #451a1a;
+    --energy-use-border: #f87171;
+    --energy-gen-bg: #064e3b;
+    --energy-gen-border: #34d399;
+    --nadh-bg: #422006;
+    --nadh-border: #fbbf24;
+    --accent: #38bdf8;
+    --success: #22c55e;
+    --error: #ef4444;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    user-select: none;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: #111a2c;
+    border-bottom: 1px solid var(--card-border);
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .title-group h1 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    background: linear-gradient(90deg, #38bdf8, #a855f7, #34d399);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .title-group p {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+  }
+
+  .stats-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .stat-badge {
+    background: #1e293b;
+    border: 1px solid #334155;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stat-badge b {
+    color: var(--accent);
+  }
+
+  .btn-group {
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 5px 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.15s ease;
+  }
+
+  .btn-check {
+    background: #0284c7;
+    color: white;
+  }
+  .btn-check:hover { background: #0369a1; }
+
+  .btn-reveal {
+    background: #7c3aed;
+    color: white;
+  }
+  .btn-reveal:hover { background: #6d28d9; }
+
+  .btn-reset {
+    background: #334155;
+    color: #e2e8f0;
+  }
+  .btn-reset:hover { background: #475569; }
+
+  /* Main Workspace */
+  main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  /* Left Panel: Draggable Pool */
+  .pool-panel {
+    width: 310px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .panel-header {
+    background: #1a263d;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #cbd5e1;
+    border-bottom: 1px solid var(--card-border);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .pool-scroll {
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .pool-section-title {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    margin-top: 4px;
+    margin-bottom: 2px;
+    padding-left: 2px;
+  }
+
+  /* Draggable Tiles */
+  .draggable-tile {
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    cursor: grab;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  .draggable-tile:active {
+    cursor: grabbing;
+    opacity: 0.7;
+    transform: scale(0.98);
+  }
+
+  .tile-substrate {
+    background: var(--substrate-bg);
+    border: 1px dashed var(--substrate-border);
+    color: var(--substrate-color);
+  }
+
+  .tile-enzyme {
+    background: var(--enzyme-bg);
+    border: 1px dashed var(--enzyme-border);
+    color: var(--enzyme-color);
+  }
+
+  .tile-badge {
+    font-size: 0.62rem;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: rgba(0,0,0,0.25);
+    opacity: 0.85;
+  }
+
+  /* Right Panel: Pathway Flowchart */
+  .flowchart-panel {
+    flex: 1;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .pathway-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  /* Step Rows */
+  .step-card {
+    display: grid;
+    grid-template-columns: 24px 220px 200px 1fr;
+    align-items: center;
+    gap: 8px;
+    background: #111a2a;
+    border: 1px solid #1c2c44;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 0.75rem;
+    min-height: 44px;
+    position: relative;
+  }
+
+  .step-num {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #64748b;
+    text-align: center;
+    background: #0d1522;
+    border-radius: 4px;
+    padding: 3px 0;
+  }
+
+  .phase-header {
+    background: linear-gradient(90deg, #1e293b, #0f172a);
+    color: #93c5fd;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    margin: 4px 0 2px 0;
+    border-left: 3px solid #38bdf8;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .phase-header.payoff {
+    border-left-color: #34d399;
+    color: #6ee7b7;
+  }
+
+  /* Drop Slots */
+  .drop-slot {
+    border-radius: 6px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-align: center;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .drop-slot.empty {
+    border: 1.5px dashed #475569;
+    background: rgba(15, 23, 42, 0.6);
+    color: #64748b;
+  }
+
+  .drop-slot.drag-over {
+    border-color: #facc15;
+    background: rgba(250, 204, 21, 0.15);
+    transform: scale(1.02);
+  }
+
+  .drop-slot.filled-substrate {
+    background: var(--substrate-bg);
+    border: 1px solid var(--substrate-border);
+    color: var(--substrate-color);
+  }
+
+  .drop-slot.filled-enzyme {
+    background: var(--enzyme-bg);
+    border: 1px solid var(--enzyme-border);
+    color: var(--enzyme-color);
+  }
+
+  .drop-slot.prefilled {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+    font-style: italic;
+  }
+
+  .drop-slot.correct {
+    border-color: var(--success) !important;
+    background: #064e3b !important;
+    color: #86efac !important;
+  }
+
+  .drop-slot.incorrect {
+    border-color: var(--error) !important;
+    background: #451a1a !important;
+    color: #fca5a5 !important;
+  }
+
+  /* Energy Tag Badges */
+  .energy-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    width: fit-content;
+  }
+
+  .energy-used {
+    background: var(--energy-use-bg);
+    border: 1px solid var(--energy-use-border);
+    color: #fca5a5;
+  }
+
+  .energy-gen {
+    background: var(--energy-gen-bg);
+    border: 1px solid var(--energy-gen-border);
+    color: #86efac;
+  }
+
+  .energy-nadh {
+    background: var(--nadh-bg);
+    border: 1px solid var(--nadh-border);
+    color: #fde68a;
+  }
+
+  .energy-neutral {
+    color: #64748b;
+    font-size: 0.68rem;
+    font-style: italic;
+  }
+
+  /* Net Summary Footer */
+  .net-summary {
+    background: #111a2c;
+    border-top: 1px solid var(--card-border);
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+  }
+
+  .net-formula {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+  }
+
+  .net-pill {
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+  }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0d131f;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+
+  .toast {
+    position: fixed;
+    top: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0284c7;
+    color: white;
+    padding: 8px 18px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: none;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-group">
+    <h1>Glycolysis Interactive Pathway</h1>
+    <p>Drag substrates & missing enzymes into their correct sequential stages (10 Steps)</p>
+  </div>
+  <div class="stats-bar">
+    <div class="stat-badge">Placed: <b id="placed-count">0 / 14</b></div>
+    <div class="stat-badge">Accuracy: <b id="score-text">--</b></div>
+  </div>
+  <div class="btn-group">
+    <button class="btn-check" onclick="checkAnswers()">✓ Check Answers</button>
+    <button class="btn-reveal" onclick="revealAnswers()">👁 Reveal Solution</button>
+    <button class="btn-reset" onclick="resetGame()">↻ Reset</button>
+  </div>
+</header>
+
+<main>
+  <!-- Left Draggable Item Bank -->
+  <aside class="pool-panel">
+    <div class="panel-header">
+      <span>Draggable Tile Bank (Shuffled)</span>
+      <span id="bank-count" style="color: var(--accent);">14 items</span>
+    </div>
+    <div class="pool-scroll" id="tiles-pool">
+      <!-- Injected via JS -->
+    </div>
+  </aside>
+
+  <!-- Right Pathway Flowchart -->
+  <section class="flowchart-panel">
+    <div class="panel-header" style="display: grid; grid-template-columns: 24px 220px 200px 1fr; gap: 8px; padding-left: 24px;">
+      <span>#</span>
+      <span>Substrate / Intermediate</span>
+      <span>Catalyzing Enzyme</span>
+      <span>Energy / Co-factor Currency</span>
+    </div>
+    
+    <div class="pathway-container" id="pathway-container">
+      <!-- Injected via JS -->
+    </div>
+  </section>
+</main>
+
+<div class="net-summary">
+  <div class="net-formula">
+    <span style="color:#94a3b8;">NET REACTION:</span>
+    <span style="color:#e2e8f0;">1 Glucose + 2 NAD⁺ + 2 ADP + 2 Pᵢ</span>
+    <span style="color:#38bdf8;">➔</span>
+    <span style="color:#34d399; font-weight: bold;">2 Pyruvate</span> +
+    <span class="net-pill energy-gen">2 ATP (Net)</span> +
+    <span class="net-pill energy-nadh">2 NADH + 2 H⁺</span> +
+    <span style="color:#94a3b8;">2 H₂O</span>
+  </div>
+  <div style="color: #64748b; font-size: 0.68rem;">
+    Substrate Level Phosphorylation: +4 ATP | Investment: -2 ATP | Net Gain: +2 ATP
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Complete Glycolysis 10-Step Data Specification
+const pathwayData = [
+  {
+    phase: "Energy Investment Phase (Prep Phase) - Consumes 2 ATP",
+    phaseType: "investment",
+    step: 0, // Initial state
+    substrate: "Glucose (6C)",
+    isSubstratePrefilled: true,
+    substrateId: "s0",
+    enzyme: "Pathway Starting Point",
+    isEnzymePrefilled: true,
+    enzymeId: "e0",
+    energy: "Starting Sugar (Hexose)",
+    energyType: "neutral"
+  },
+  {
+    step: 1,
+    substrate: "Glucose-6-Phosphate (G6P)",
+    isSubstratePrefilled: false,
+    substrateId: "s1",
+    enzyme: "Hexokinase",
+    isEnzymePrefilled: true, // 50% pre-filled
+    enzymeId: "e1",
+    energy: "🔴 Uses 1 ATP ➔ ADP",
+    energyType: "used"
+  },
+  {
+    step: 2,
+    substrate: "Fructose-6-Phosphate (F6P)",
+    isSubstratePrefilled: false,
+    substrateId: "s2",
+    enzyme: "Phosphoglucose Isomerase",
+    isEnzymePrefilled: false, // Draggable
+    enzymeId: "e2",
+    energy: "Isomerization (Aldose ➔ Ketose)",
+    energyType: "neutral"
+  },
+  {
+    step: 3,
+    substrate: "Fructose-1,6-Bisphosphate (F1,6BP)",
+    isSubstratePrefilled: false,
+    substrateId: "s3",
+    enzyme: "Phosphofructokinase-1 (PFK-1)",
+    isEnzymePrefilled: true, // 50% pre-filled (Key committed step)
+    enzymeId: "e3",
+    energy: "🔴 Uses 1 ATP ➔ ADP",
+    energyType: "used"
+  },
+  {
+    step: 4,
+    substrate: "Glyceraldehyde-3-Phosphate (G3P / GAP)",
+    isSubstratePrefilled: false,
+    substrateId: "s4",
+    enzyme: "Aldolase",
+    isEnzymePrefilled: false, // Draggable
+    enzymeId: "e4",
+    energy: "Cleavage into 2 Trioses (+ DHAP)",
+    energyType: "neutral"
+  },
+  {
+    step: 5,
+    substrate: "Dihydroxyacetone Phosphate ⇌ G3P",
+    isSubstratePrefilled: false,
+    substrateId: "s5",
+    enzyme: "Triose Phosphate Isomerase (TPI)",
+    isEnzymePrefilled: true, // 50% pre-filled
+    enzymeId: "e5",
+    energy: "Yields 2× G3P total",
+    energyType: "neutral"
+  },
+  {
+    phase: "Energy Payoff Phase (Payoff Phase) - Multiplied ×2 per Glucose",
+    phaseType: "payoff",
+    step: 6,
+    substrate: "1,3-Bisphosphoglycerate (1,3-BPG) [×2]",
+    isSubstratePrefilled: false,
+    substrateId: "s6",
+    enzyme: "Glyceraldehyde-3-Phosphate Dehydrogenase",
+    isEnzymePrefilled: false, // Draggable
+    enzymeId: "e6",
+    energy: "⚡ Produces 2 NADH + 2 H⁺",
+    energyType: "nadh"
+  },
+  {
+    step: 7,
+    substrate: "3-Phosphoglycerate (3-PG) [×2]",
+    isSubstratePrefilled: false,
+    substrateId: "s7",
+    enzyme: "Phosphoglycerate Kinase",
+    isEnzymePrefilled: true, // 50% pre-filled
+    enzymeId: "e7",
+    energy: "🟢 Generates 2 ATP (Substrate-Level)",
+    energyType: "gen"
+  },
+  {
+    step: 8,
+    substrate: "2-Phosphoglycerate (2-PG) [×2]",
+    isSubstratePrefilled: false,
+    substrateId: "s8",
+    enzyme: "Phosphoglycerate Mutase",
+    isEnzymePrefilled: false, // Draggable
+    enzymeId: "e8",
+    energy: "Phosphate shift (C3 ➔ C2)",
+    energyType: "neutral"
+  },
+  {
+    step: 9,
+    substrate: "Phosphoenolpyruvate (PEP) [×2]",
+    isSubstratePrefilled: false,
+    substrateId: "s9",
+    enzyme: "Enolase",
+    isEnzymePrefilled: true, // 50% pre-filled
+    enzymeId: "e9",
+    energy: "💧 Releases 2 H₂O (Dehydration)",
+    energyType: "neutral"
+  },
+  {
+    step: 10,
+    substrate: "Pyruvate (3C) [×2]",
+    isSubstratePrefilled: false,
+    substrateId: "s10",
+    enzyme: "Pyruvate Kinase",
+    isEnzymePrefilled: false, // Draggable
+    enzymeId: "e10",
+    energy: "🟢 Generates 2 ATP (Substrate-Level)",
+    energyType: "gen"
+  }
+];
+
+// Current user state: slotId -> item object
+let userPlacements = {};
+let draggedItem = null;
+
+// Collect all missing items to form the shuffled bank
+function generateTileBank() {
+  const substrates = [];
+  const enzymes = [];
+
+  pathwayData.forEach(item => {
+    if (item.step > 0 && !item.isSubstratePrefilled) {
+      substrates.push({
+        id: item.substrateId,
+        name: item.substrate,
+        type: 'substrate',
+        badge: 'Substrate'
+      });
+    }
+    if (item.step > 0 && !item.isEnzymePrefilled) {
+      enzymes.push({
+        id: item.enzymeId,
+        name: item.enzyme,
+        type: 'enzyme',
+        badge: 'Enzyme'
+      });
+    }
+  });
+
+  // Combine and Fisher-Yates Shuffle
+  const allItems = [...substrates, ...enzymes];
+  for (let i = allItems.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allItems[i], allItems[j]] = [allItems[j], allItems[i]];
+  }
+  return allItems;
+}
+
+let initialBank = generateTileBank();
+
+function renderBank() {
+  const pool = document.getElementById('tiles-pool');
+  pool.innerHTML = '';
+  
+  // Filter out items already placed
+  const placedIds = Object.values(userPlacements).map(p => p.id);
+  const remaining = initialBank.filter(tile => !placedIds.includes(tile.id));
+  
+  document.getElementById('bank-count').textContent = `${remaining.length} remaining`;
+  document.getElementById('placed-count').textContent = `${placedIds.length} / ${initialBank.length}`;
+
+  if (remaining.length === 0) {
+    pool.innerHTML = '<div style="color: #64748b; font-size: 0.75rem; text-align: center; padding: 20px;">All tiles placed! Click "Check Answers" above.</div>';
+    return;
+  }
+
+  // Render Substrates
+  const subRemaining = remaining.filter(t => t.type === 'substrate');
+  if (subRemaining.length > 0) {
+    const title = document.createElement('div');
+    title.className = 'pool-section-title';
+    title.textContent = `Substrates (${subRemaining.length})`;
+    pool.appendChild(title);
+
+    subRemaining.forEach(item => {
+      pool.appendChild(createTileElement(item));
+    });
+  }
+
+  // Render Enzymes
+  const enzRemaining = remaining.filter(t => t.type === 'enzyme');
+  if (enzRemaining.length > 0) {
+    const title = document.createElement('div');
+    title.className = 'pool-section-title';
+    title.style.marginTop = '8px';
+    title.textContent = `Enzymes (${enzRemaining.length})`;
+    pool.appendChild(title);
+
+    enzRemaining.forEach(item => {
+      pool.appendChild(createTileElement(item));
+    });
+  }
+}
+
+function createTileElement(item) {
+  const el = document.createElement('div');
+  el.className = `draggable-tile ${item.type === 'substrate' ? 'tile-substrate' : 'tile-enzyme'}`;
+  el.draggable = true;
+  el.dataset.id = item.id;
+  el.dataset.type = item.type;
+  el.innerHTML = `
+    <span>${item.name}</span>
+    <span class="tile-badge">${item.badge}</span>
+  `;
+
+  el.addEventListener('dragstart', (e) => {
+    draggedItem = item;
+    e.dataTransfer.setData('text/plain', JSON.stringify(item));
+    el.style.opacity = '0.5';
+  });
+
+  el.addEventListener('dragend', () => {
+    el.style.opacity = '1';
+    draggedItem = null;
+  });
+
+  return el;
+}
+
+function renderPathway() {
+  const container = document.getElementById('pathway-container');
+  container.innerHTML = '';
+
+  pathwayData.forEach(stepData => {
+    if (stepData.phase) {
+      const phaseDiv = document.createElement('div');
+      phaseDiv.className = `phase-header ${stepData.phaseType}`;
+      phaseDiv.innerHTML = `<span>${stepData.phase}</span><span>${stepData.phaseType === 'investment' ? '-2 ATP' : '+4 ATP & +2 NADH'}</span>`;
+      container.appendChild(phaseDiv);
+    }
+
+    const row = document.createElement('div');
+    row.className = 'step-card';
+
+    // Step Number badge
+    const num = document.createElement('div');
+    num.className = 'step-num';
+    num.textContent = stepData.step === 0 ? 'START' : `S${stepData.step}`;
+    row.appendChild(num);
+
+    // Substrate slot
+    const subSlot = document.createElement('div');
+    subSlot.className = 'drop-slot';
+    subSlot.id = `slot-${stepData.substrateId}`;
+    subSlot.dataset.expectedType = 'substrate';
+    subSlot.dataset.targetId = stepData.substrateId;
+
+    if (stepData.isSubstratePrefilled) {
+      subSlot.classList.add('prefilled');
+      subSlot.innerHTML = `<b>${stepData.substrate}</b>`;
+    } else {
+      const placed = userPlacements[stepData.substrateId];
+      if (placed) {
+        subSlot.classList.add('filled-substrate');
+        subSlot.innerHTML = `<span>${placed.name}</span> <small style="cursor:pointer; margin-left:6px; opacity:0.6;" onclick="removePlacement('${stepData.substrateId}')">✕</small>`;
+      } else {
+        subSlot.classList.add('empty');
+        subSlot.textContent = 'Drop Substrate Here';
+      }
+      setupDropTarget(subSlot);
+    }
+    row.appendChild(subSlot);
+
+    // Enzyme slot
+    const enzSlot = document.createElement('div');
+    enzSlot.className = 'drop-slot';
+    enzSlot.id = `slot-${stepData.enzymeId}`;
+    enzSlot.dataset.expectedType = 'enzyme';
+    enzSlot.dataset.targetId = stepData.enzymeId;
+
+    if (stepData.isEnzymePrefilled) {
+      enzSlot.classList.add('prefilled');
+      enzSlot.textContent = stepData.enzyme;
+    } else {
+      const placed = userPlacements[stepData.enzymeId];
+      if (placed) {
+        enzSlot.classList.add('filled-enzyme');
+        enzSlot.innerHTML = `<span>${placed.name}</span> <small style="cursor:pointer; margin-left:6px; opacity:0.6;" onclick="removePlacement('${stepData.enzymeId}')">✕</small>`;
+      } else {
+        enzSlot.classList.add('empty');
+        enzSlot.textContent = 'Drop Enzyme Here';
+      }
+      setupDropTarget(enzSlot);
+    }
+    row.appendChild(enzSlot);
+
+    // Energy / Co-factor Currency
+    const energy = document.createElement('div');
+    let energyClass = 'energy-neutral';
+    if (stepData.energyType === 'used') energyClass = 'energy-tag energy-used';
+    if (stepData.energyType === 'gen') energyClass = 'energy-tag energy-gen';
+    if (stepData.energyType === 'nadh') energyClass = 'energy-tag energy-nadh';
+
+    energy.className = energyClass;
+    energy.textContent = stepData.energy;
+    row.appendChild(energy);
+
+    container.appendChild(row);
+  });
+}
+
+function setupDropTarget(slot) {
+  slot.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    slot.classList.add('drag-over');
+  });
+
+  slot.addEventListener('dragleave', () => {
+    slot.classList.remove('drag-over');
+  });
+
+  slot.addEventListener('drop', (e) => {
+    e.preventDefault();
+    slot.classList.remove('drag-over');
+    
+    let data = draggedItem;
+    if (!data) {
+      try {
+        data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      } catch (err) {
+        return;
+      }
+    }
+
+    if (!data) return;
+
+    // Optional Type Check (e.g. Substrate can only go to substrate slot)
+    if (data.type !== slot.dataset.expectedType) {
+      showToast(`⚠️ That slot requires a ${slot.dataset.expectedType.toUpperCase()}, not a ${data.type.toUpperCase()}`);
+      return;
+    }
+
+    // Assign placement
+    const targetSlotId = slot.dataset.targetId;
+    userPlacements[targetSlotId] = data;
+
+    renderPathway();
+    renderBank();
+  });
+}
+
+function removePlacement(slotId) {
+  delete userPlacements[slotId];
+  renderPathway();
+  renderBank();
+}
+
+function checkAnswers() {
+  let correctCount = 0;
+  let totalInspectable = initialBank.length;
+
+  pathwayData.forEach(step => {
+    if (!step.isSubstratePrefilled && step.step > 0) {
+      const slot = document.getElementById(`slot-${step.substrateId}`);
+      const placed = userPlacements[step.substrateId];
+      if (slot) {
+        slot.classList.remove('correct', 'incorrect');
+        if (placed) {
+          if (placed.id === step.substrateId) {
+            slot.classList.add('correct');
+            correctCount++;
+          } else {
+            slot.classList.add('incorrect');
+          }
+        }
+      }
+    }
+
+    if (!step.isEnzymePrefilled && step.step > 0) {
+      const slot = document.getElementById(`slot-${step.enzymeId}`);
+      const placed = userPlacements[step.enzymeId];
+      if (slot) {
+        slot.classList.remove('correct', 'incorrect');
+        if (placed) {
+          if (placed.id === step.enzymeId) {
+            slot.classList.add('correct');
+            correctCount++;
+          } else {
+            slot.classList.add('incorrect');
+          }
+        }
+      }
+    }
+  });
+
+  const accuracy = Math.round((correctCount / totalInspectable) * 100);
+  document.getElementById('score-text').textContent = `${accuracy}% (${correctCount}/${totalInspectable})`;
+
+  if (correctCount === totalInspectable) {
+    showToast("🎉 Perfect Score! All Glycolysis steps & enzymes are perfectly placed!");
+  } else {
+    showToast(`Checked: ${correctCount} correct out of ${totalInspectable}. Green = Correct, Red = Incorrect.`);
+  }
+}
+
+function revealAnswers() {
+  pathwayData.forEach(step => {
+    if (!step.isSubstratePrefilled && step.step > 0) {
+      const match = initialBank.find(b => b.id === step.substrateId);
+      if (match) userPlacements[step.substrateId] = match;
+    }
+    if (!step.isEnzymePrefilled && step.step > 0) {
+      const match = initialBank.find(b => b.id === step.enzymeId);
+      if (match) userPlacements[step.enzymeId] = match;
+    }
+  });
+  renderPathway();
+  renderBank();
+  checkAnswers();
+  showToast("🔍 Complete solution revealed.");
+}
+
+function resetGame() {
+  userPlacements = {};
+  initialBank = generateTileBank();
+  renderPathway();
+  renderBank();
+  document.getElementById('score-text').textContent = '--';
+  showToast("Pathway reset. Ready for a new attempt!");
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.display = 'block';
+  setTimeout(() => {
+    t.style.display = 'none';
+  }, 3500);
+}
+
+// Initial bootstrap
+renderPathway();
+renderBank();
+</script>
+</body>
+</html>
